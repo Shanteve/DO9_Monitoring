@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.Counter;
+
 @Component
 public class QueueProducer {
     @Value("${fanout.exchange}")
@@ -16,12 +18,16 @@ public class QueueProducer {
     @Autowired
     private RabbitTemplate rabbitTemplate;
 
+    @Autowired
+    private Counter sentMessagesRabbitmqCounter;
+
     private ObjectMapper objectMapper = new ObjectMapper();
 
     public void putStatistics(BookingStatisticsMessage bookingStatisticsMessage) throws JsonProcessingException {
         System.out.println("Sending message...");
         rabbitTemplate.setExchange(fanoutExchange);
         rabbitTemplate.convertAndSend(objectMapper.writeValueAsString(bookingStatisticsMessage));
+        sentMessagesRabbitmqCounter.increment();
         System.out.println("Message was sent successfully!");
     }
 }

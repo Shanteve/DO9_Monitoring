@@ -1,0 +1,162 @@
+services:
+  prometheus:
+    image: prom/prometheus:v3.15.0
+    user: root
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=3d'
+      - '--web.enable-lifecycle'
+    ports: 
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - prometheus_data:/prometheus
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - services_network
+      - monitoring_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+  
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.28.0
+    volumes:
+      - ./monitoring/blackbox.yml:/etc/blackbox/blackbox.yml:ro
+    command:
+      - '--config.file=/etc/blackbox/blackbox.yml'
+    networks:
+      - monitoring_network
+      - services_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+  node-exporter:
+    image: prom/node-exporter:v1.12.1
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(dev|proc|sys|var/lib/docker/.+|var/lib/kubelet/.+)($$|/)'
+    networks:
+      - monitoring_network
+    deploy:
+      mode: global
+  
+  cadvisor:
+    image: ghcr.io/google/cadvisor:v0.60.6
+    privileged: true
+    command:
+      - --docker_only=true
+      - --housekeeping_interval=15s
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring_network
+    deploy:
+      mode: global
+  
+  loki:
+    image: grafana/loki:3.7.8-arm64
+    command:
+      - '-config.file=/etc/loki/config.yml'
+    volumes:
+      - ./monitoring/loki_config.yml:/etc/loki/config.yml:ro
+      - loki_data:/loki
+    networks:
+      - monitoring_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+  
+  alloy:
+    image: grafana/alloy:v1.20.1
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy/alloy_config.yml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./monitoring/alloy_config.alloy:/etc/alloy/alloy_config.yml:ro
+      - alloy_data:/var/lib/alloy/data
+    networks:
+      - monitoring_network
+    deploy:
+      mode: global
+  
+  grafana:
+    image: grafana/grafana:13.2-slim
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: test12345
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+  
+  alertmanager:
+    image: prom/alertmanager:v0.34.1
+    restart: unless-stopped
+    secrets:
+      - telegram_token
+      - gmail_token
+    volumes:
+      - ./monitoring/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - monitoring_network
+    deploy:
+      replicas: 1
+      placement:
+        constraints:
+          - node.role == manager
+
+networks:
+  monitoring_network:
+    driver: overlay
+    attachable: true
+    name: monitoring_network
+  services_network:
+    external: true
+    name: services_network
+
+volumes:
+  prometheus_data:
+  loki_data:
+  alloy_data:
+  grafana_data:
+  alertmanager_data:
+
+secrets:
+  telegram_token:
+    external: true
+  gmail_token:
+    external: true

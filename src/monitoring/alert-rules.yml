@@ -1,0 +1,47 @@
+groups:
+  - name: node-filesystem-memory
+    rules:
+      - alert: NodeMemoryAvailableLow
+        expr: node_filesystem_avail_bytes{mountpoint='/'} < 104857600
+        for: 2m
+        labels:
+          severity: critical
+          scope: node
+        annotations:
+          summary: "Доступная память ниже 100 Мб на {{ $labels.node_hostname }}"
+          description: >-
+            На ноде {{ $labels.node_hostname }} осталось {{ $value | humanize1024 }}B
+            доступной памяти. Порог срабатывания — 100 Мб в течение 2 минут.
+
+  - name: node-ram
+    rules:
+      - alert: NodeMemoryUsageHigh
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) > 1073741824
+        for: 2m
+        labels:
+          severity: critical
+          scope: service
+        annotations:
+          summary: "Нода {{ $labels.node_hostname }} использует более 1 Гб RAM"
+          description: >-
+            Количество занятой RAM на ноде {{ $labels.node_hostname }}
+            составляет {{ $value | humanize1024 }}B и превышает 1 Гб в течение 5 минут.
+
+  - name: services-cpu
+    rules:
+    - alert: ServiceCPUUsageHigh
+      expr: |
+        100 * sum by (container_label_com_docker_swarm_service_name) (
+          rate(container_cpu_usage_seconds_total{
+            container_label_com_docker_swarm_service_name!=""
+          }[5m])
+        ) > 10
+      for: 2m
+      labels:
+        severity: critical
+        scope: service
+      annotations:
+        summary: "CPU сервиса {{ $labels.container_label_com_docker_swarm_service_name }} выше 10% одного ядра"
+        description: >-
+          Суммарное потребление CPU всеми репликами сервиса {{ $labels.container_label_com_docker_swarm_service_name }}
+          составляет {{ printf "%.1f" $value }}% одного ядра в течение 5 минут.

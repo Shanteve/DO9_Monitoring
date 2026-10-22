@@ -19,6 +19,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.Counter;
+
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
 @RequestMapping("/api/v1/auth")
@@ -29,9 +31,13 @@ public class SessionController {
     @Autowired
     private SessionService sessionService;
 
+    @Autowired
+    private Counter authorizationRequests;
+
     @GetMapping("/authorize")
     public ResponseEntity<Void> authorize(@RequestHeader("authorization") String authorization)
             throws InvalidKeySpecException, NoSuchAlgorithmException, EntityNotFoundException, RoleNotFoundException {
+        authorizationRequests.increment();
         String jwtToken = sessionService.authorize(authorization);
         return ResponseEntity.ok().header("Authorization", "Bearer " + jwtToken).header("Access-Control-Expose-Headers", "authorization").build();
     }

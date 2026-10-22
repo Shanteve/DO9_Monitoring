@@ -7,11 +7,15 @@ import com.s21.devops.sample.reportservice.Service.BookingStatsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
+import io.micrometer.core.instrument.Counter;
 
 @Component
 public class QueueConsumer {
     @Autowired
     private BookingStatsService bookingStatsService;
+
+    @Autowired
+    private Counter messagesProcessedRabbitmq;
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -29,5 +33,6 @@ public class QueueConsumer {
     private void processMessage(String message) throws JsonProcessingException {
         BookingStatisticsMessage bsm = objectMapper.readValue(message, BookingStatisticsMessage.class);
         bookingStatsService.postBookingStatsMessage(bsm);
+        messagesProcessedRabbitmq.increment();
     }
 }

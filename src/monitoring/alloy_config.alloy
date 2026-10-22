@@ -1,0 +1,33 @@
+discovery.docker "swarm_containers" {
+  host = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+}
+
+discovery.relabel "docker_log_labels" {
+  targets = []
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex = "/(.*)"
+    target_label = "container"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_label_com_docker_swarm_service_name"]
+    target_label  = "service_name"
+  }
+}
+
+loki.source.docker "swarm_logs" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.swarm_containers.targets
+  labels        = { job = "docker" }
+  relabel_rules = discovery.relabel.docker_log_labels.rules
+  forward_to    = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

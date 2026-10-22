@@ -17,6 +17,8 @@ import java.security.NoSuchAlgorithmException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.UUID;
 
+import io.micrometer.core.instrument.Counter;
+
 @EnableCircuitBreaker
 @RestController
 @RequestMapping("/api/v1/booking")
@@ -26,6 +28,9 @@ public class BookingController {
 
     @Autowired
     private BookingService bookingService;
+
+    @Autowired
+    private Counter bookingsCounter;
 
     //TO_DO
     //3. patch availability
@@ -44,6 +49,7 @@ public class BookingController {
             CustomRuntimeException, PaymentNotFoundException, LoyaltyNotFoundException, JsonProcessingException, CoudntPayException {
         System.out.println("hotel was booked");
         bookingService.bookHotel(bookHotelReq);
+        bookingsCounter.increment();
     }
 
     @ResponseStatus(HttpStatus.NO_CONTENT)
