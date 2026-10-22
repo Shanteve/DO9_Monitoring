@@ -2,6 +2,7 @@
 ### Задание
 
 1. Использовать Docker Swarm из первого проекта. 
+
 Перед запуском проекта нужно создать .env файл. Пример в файле .env.example 
 
 2. Написать при помощи библиотеки Micrometer сборщики следующих метрик приложения: 
@@ -21,10 +22,11 @@
 - Пример того, как подключаются метрики. 1) Импортируется класс Counter (Счётчик). 2) Привязывается наш ранее созданный счётчик *sentMessagesRabbitmqCounter* 3) После отправки сообщения в RabbitMQ значения счётчика увеличивается на 1.
 ![alt text](<images/part1/execise2/image copy 3.png>)
 
-После сборки я запушил все новые образы в dockerhub с тегом v2 и впоследствии использовал их в docker-compose.yml файле.
-- ![alt text](<images/part1/execise2/image copy 4.png>)
+- После сборки я запушил все новые образы в dockerhub с тегом v2 и впоследствии использовал их в docker-compose.yml файле.
+![alt text](<images/part1/execise2/image copy 4.png>)
 
 3. Добавить логи приложения с помощью Loki.
+
 - Конфигурация Loki
 ![alt text](images/part1/exercise3/image.png)
 
@@ -34,8 +36,7 @@
 
 4. Создать новый стек для Docker Swarm из сервисов с Prometheus Server, Loki, node_exporter, blackbox_exporter, cAdvisor. Проверить получение метрик на порту 9090 через браузер.
 
-Я создал отдельный docker-compose-monitroing.yml файл для присоединения стека мониторинга в Docker Swarm.
-- Содержимое файла docker-compose-monitroing.yml
+- Я создал отдельный docker-compose-monitroing.yml файл для присоединения стека мониторинга в Docker Swarm.Содержимое файла docker-compose-monitroing.yml
 ![alt text](images/part1/exercise4/image.png)
 ![alt text](<images/part1/exercise4/image copy.png>)
 ![alt text](<images/part1/exercise4/image copy 2.png>)
@@ -44,7 +45,7 @@
 ![alt text](<images/part1/exercise4/image copy 5.png>)
 ![alt text](<images/part1/exercise4/image copy 6.png>)
 
-Конфигурации для сервисов хранятся в директории monitoring:
+- Конфигурации для сервисов хранятся в директории monitoring:
 1) prometheus.yml
 - ![alt text](<images/part1/exercise4/image copy 7.png>)
 ![alt text](<images/part1/exercise4/image copy 8.png>)
@@ -161,9 +162,9 @@ printf "Ваш секретный токен" | docker secret create telegram_to
 3. Настроить получение оповещений через личные email и Телеграм.
 Пример уведомлений. У меня стоит проверка, что "использование CPU по сервису превышает 10%" на ноде вызывает alert. На manager01 данная проверка срабатывает сразу же из-за rabbitmq.
 
-Письмо в gmail
-- ![alt text](images/part3/exercise3/image.png)
+- Письмо в gmail
+![alt text](images/part3/exercise3/image.png)
 ![alt text](<images/part3/exercise3/image copy.png>)
 
-Сообщение в телеграмме
-- ![alt text](<images/part3/exercise3/image copy 2.png>)
+- Сообщение в телеграмме
+![alt text](<images/part3/exercise3/image copy 2.png>)
