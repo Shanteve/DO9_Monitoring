@@ -1,102 +1,307 @@
-# Monitoring
+# DO9 — Мониторинг микросервисного приложения
 
-Monitoring tools to track metrics and critical situations.
+<p align="center">
+  <img src="https://img.shields.io/badge/Docker-2496ED?logo=docker&logoColor=white" />
+  <img src="https://img.shields.io/badge/Docker%20Swarm-2496ED?logo=docker&logoColor=white" />
+  <img src="https://img.shields.io/badge/Vagrant-1868F2?logo=vagrant&logoColor=white" />
+  <img src="https://img.shields.io/badge/Prometheus-E6522C?logo=prometheus&logoColor=white" />
+  <img src="https://img.shields.io/badge/Grafana-F46800?logo=grafana&logoColor=white" />
+  <img src="https://img.shields.io/badge/Loki-F46800?logo=grafana&logoColor=white" />
+  <img src="https://img.shields.io/badge/Alloy-F46800?logo=grafana&logoColor=white" />
+  <img src="https://img.shields.io/badge/Alertmanager-E6522C?logo=prometheus&logoColor=white" />
+  <img src="https://img.shields.io/badge/Java-ED8B00?logo=openjdk&logoColor=white" />
+  <img src="https://img.shields.io/badge/Spring%20Boot-6DB33F?logo=springboot&logoColor=white" />
+  <img src="https://img.shields.io/badge/Maven-C71A36?logo=apachemaven&logoColor=white" />
+  <img src="https://img.shields.io/badge/Micrometer-2E7D32?logo=spring&logoColor=white" />
+  <img src="https://img.shields.io/badge/Nginx-009639?logo=nginx&logoColor=white" />
+</p>
 
-💡 [Tap here](https://new.oprosso.net/p/4cb31ec3f47a4596bc758ea1861fb624) **to leave your feedback on the project**. It's anonymous and will help our team make your educational experience better. We recommend completing the survey immediately after the project.
+Проект по построению системы наблюдаемости для микросервисного приложения, развернутого в Docker Swarm. В проекте объединены сбор метрик инфраструктуры и приложения, централизованный сбор логов, визуализация и оповещения о критических состояниях.
 
-## Contents
+> **Материалы проекта**
+>
+> - [Полное задание School 21](README_RUS.md)
+> - [Отчёт о выполнении с конфигурациями и скриншотами](src/REPORT.MD)
 
-1. [Chapter I](#chapter-i) 
-2. [Chapter II](#chapter-ii) \
-   2.1. [Getting metrics and logs](#part-1-getting-metrics-and-logs) \
-   2.2. [Visualization](#part-2-visualization) \
-   2.3. [Critical event monitoring](#part-3-critical-event-monitoring) 
+## Цель проекта
 
-## Instructions
+Развернуть отдельный monitoring stack рядом с приложением в Docker Swarm и получить единое место для анализа состояния инфраструктуры и бизнес-метрик микросервисов.
 
-How to learn at “School 21”:
+Решение охватывает три направления:
 
-- Here, you’ll find a unique learning experience with a lot of freedom. You’re given a task and left to find your own way to solve it, using whatever resources work best for you — whether that’s the Internet or AI tools like GigaChat. Just be mindful of information quality: verify, think critically, analyze, and compare.
-- Peer-to-peer (P2P) learning is the exchange of knowledge and experience with peers, where everyone acts as both mentor and student. This approach allows you to gain a deeper understanding of the material by learning from one another.
-- Feel free to ask for help: around you are peers who are also navigating this path for the first time. Share your own experience and ideas with others.  Join Rocket.Chat to stay updated with the latest community announcements. 
-- Your learning is meaningless if you just copy someone else’s solutions. When receiving help from others, always make sure you fully understand the “why”, “how”, and “purpose” behind the solution. Don’t be afraid to make mistakes. 
-- Does the task seem impossible? Take a break, get some fresh air and clear your mind — this has helped many people. Maybe after that, the solution will come to you naturally.
-- The learning process is just as important as the result. It’s not just about completing the task — it’s about understanding HOW to solve it. 
+- **Metrics:** Prometheus собирает метрики узлов, контейнеров, доступности HTTP endpoints и Spring Boot-приложений.
+- **Logs:** Grafana Alloy обнаруживает Docker-контейнеры и отправляет их логи в Loki.
+- **Visualization & alerting:** Grafana объединяет метрики и логи на дашборде, а Prometheus и Alertmanager формируют и доставляют уведомления о заданных порогах.
 
-How to work with the project:
+## Архитектура
 
-- Before starting, clone the project from GitLab into a repository with the same name.
-- All files should be created inside the _src/_ folder of the cloned repository.
-- After cloning the project, create a _develop_ branch and do all your development there. Then, push the _develop_ branch to GitLab.
-- Your directory should not contain any files other than those specified in the assignments.
+```mermaid
+flowchart TB
+    subgraph Swarm["Docker Swarm cluster"]
+        subgraph App["Application stack"]
+            Nginx["Nginx reverse proxy"]
+            Gateway["gateway-service"]
+            Session["session-service"]
+            Booking["booking-service"]
+            Other["hotel / payment / loyalty / report"]
+            PG[("PostgreSQL")]
+            RMQ[("RabbitMQ")]
+            Nginx --> Gateway
+            Nginx --> Session
+            Gateway --> Other
+            Gateway --> Booking
+            Booking --> PG
+            Booking --> RMQ
+            RMQ --> Other
+        end
 
-## Chapter I
+        subgraph Monitoring["Monitoring stack"]
+            Prom["Prometheus"]
+            Graf["Grafana"]
+            Loki["Loki"]
+            Alloy["Grafana Alloy"]
+            AM["Alertmanager"]
+            Node["node_exporter\n(global)"]
+            Cadvisor["cAdvisor\n(global)"]
+            Blackbox["Blackbox Exporter"]
+        end
+    end
 
-Application monitoring is an important part of any software development. Monitoring usually involves collecting and visualizing metrics and logs of both the application and the infrastructure in which the application is deployed. 
+    Node --> Prom
+    Cadvisor --> Prom
+    Blackbox --> Prom
+    Gateway --> Prom
+    Booking --> Prom
+    Session --> Prom
+    Other --> Prom
+    Prom --> Graf
+    Alloy --> Loki
+    Loki --> Graf
+    Prom --> AM
+    AM --> Email["Email"]
+    AM --> Telegram["Telegram"]
+```
 
-**Metrics** are numeric values that show the actual parameters and performance of the application. **Logs** are text records with important information about the progress of the application.
+### Состав решения
 
-The combination of Prometheus and Grafana is in fact one of the most frequently used solutions for collecting and visualizing metrics in applications and distributed systems. Loki is a tool inspired by Prometheus for collecting textual logs.
+| Компонент | Назначение |
+|---|---|
+| Docker Swarm | Оркестрация приложения и monitoring stack |
+| Prometheus | Сбор и хранение временных рядов, service discovery и правила алертов |
+| node_exporter | Метрики ОС и ресурсов узлов |
+| cAdvisor | Метрики контейнеров |
+| Blackbox Exporter | Проверки доступности HTTP endpoints |
+| Grafana Alloy | Обнаружение Docker-контейнеров и сбор stdout/stderr логов |
+| Loki | Хранение и поиск логов |
+| Grafana | Дашборд с инфраструктурными и прикладными показателями |
+| Alertmanager | Группировка и доставка уведомлений |
+| Nginx | Внешняя точка входа к session-service и gateway-service |
+| PostgreSQL, RabbitMQ | Хранилище данных и брокер сообщений приложения |
 
-## Chapter II
+Monitoring stack описан отдельно в `src/docker-compose-monitoring.yml`. Он использует общую overlay-сеть `services_network` приложения и отдельную `monitoring_network`. `node_exporter`, cAdvisor и Alloy запускаются в global mode — по одной задаче на каждой Swarm-ноде. Prometheus, Grafana, Loki и Alertmanager размещаются на manager-ноде.
 
-The result of the work must be a report with detailed descriptions of the implementation of each of the points with screenshots. The report is prepared as a markdown file in the `src` directory named `REPORT.MD`.
+## Сбор метрик приложения с Micrometer
 
-## Part 1. Getting metrics and logs
+В Spring Boot-сервисы добавлены зависимости Micrometer и Prometheus registry. Actuator публикует endpoint `/actuator/prometheus`, который опрашивает Prometheus.
 
-In this chapter you will configure Prometheus and Loki to collect metrics and logs for the application.
+Реализованы пользовательские счётчики:
 
-### Task 
+| Метрика Micrometer | Сервис | Что учитывает |
+|---|---|---|
+| `rabbitmq.messages.sent` | booking-service | Отправленные сообщения RabbitMQ |
+| `rabbitmq.messages.processed` | report-service | Обработанные сообщения RabbitMQ |
+| `bookings.total` | booking-service | Выполненные бронирования |
+| `gateway.requests.total` | gateway-service | Запросы, обработанные методами gateway |
+| `auth.requests.total` | session-service | Запросы авторизации |
 
-1. Use the Docker Swarm from the first project. 
+Счётчики регистрируются через `MeterRegistry` как Spring beans и увеличиваются в точках выполнения соответствующих операций. В Prometheus имена счётчиков экспортируются с суффиксом `_total`, например `bookings_total`.
 
-2. Use the Micrometer library to write the following application metrics collectors: 
-   - number of messages sent to rabbitmq;
-   - number of messages processed in rabbitmq;
-   - number of bookings;
-   - number of requests received at the gateway;
-   - number of user authorization requests received.
+Prometheus использует DNS service discovery по `tasks.<service-name>` для обнаружения задач микросервисов. Для узлов и контейнеров применяется Docker Swarm service discovery через Docker socket.
 
-3. Add application logs using Loki.
+## Сбор логов с Loki и Alloy
 
-4. Create a new stack for the Docker Swarm of services with Prometheus Server, Loki, node_exporter, blackbox_exporter, cAdvisor. Check receiving metrics on port 9090 via a browser.
+Для централизованного сбора логов используется Grafana Alloy. Конфигурация `src/monitoring/alloy_config.alloy`:
 
-## Part 2. Visualization
+1. обнаруживает контейнеры через Docker API;
+2. извлекает имя контейнера и имя Swarm-сервиса в labels;
+3. читает Docker logs;
+4. отправляет записи в Loki по адресу `http://loki:3100/loki/api/v1/push`.
 
-In this chapter you will configure Grafana to visualize metrics and logs.
+Loki хранит chunks и индексы в файловой системе внутри volume `loki_data`. В Grafana Loki подключён как отдельный datasource, поэтому логи можно исследовать рядом с временными рядами Prometheus.
 
-### Task
+## Дашборд Grafana
 
-1. Deploy Grafana as a new service in the monitoring stack.
+Grafana разворачивается отдельным сервисом и подключается к Prometheus и Loki через provisioning datasources. В проекте подготовлен дашборд Docker Swarm с 15 панелями:
 
-2. Add a dashboard with the following metrics to Grafana:
-   - number of nodes;
-   - number of containers;
-   - number of stacks;
-   - CPU usage for services;
-   - CPU usage for cores and nodes;
-   - spent RAM;
-   - available and used memory;
-   - number of CPUs;
-   - google.com availability;
-   - number of messages sent to rabbitmq;
-   - number of messages processed in rabbitmq;
-   - number of bookings;
-   - number of requests received at the gateway;
-   - number of user authorization requests received;
-   - application logs.
+- количество Swarm-нод, контейнеров и стеков;
+- использование CPU по сервисам, ядрам и узлам;
+- занятая RAM, доступная и используемая память;
+- количество CPU;
+- доступность `google.com`;
+- отправленные и обработанные сообщения RabbitMQ;
+- количество бронирований;
+- запросы к gateway и авторизации;
+- логи приложения из Loki.
 
-## Part 3. Critical event monitoring
+Экспорт дашборда находится в `src/monitoring/grafana/dashboards/`. Отчёт содержит скриншоты панелей и подтверждение их работы.
 
-In this chapter you will configure the Alert Manager to alert you about critical events.
+## Алерты и доставка уведомлений
 
-### Task 
+Prometheus загружает правила из `src/monitoring/alert-rules.yml` и передаёт сработавшие алерты в Alertmanager.
 
-1. Deploy Alert Manager as a new service in the monitored stack.
+В конфигурации предусмотрены три группы условий:
 
-2. Add the following critical events:
-   - available memory is less than 100 MB;
-   - used RAM is more than 1 GB;
-   - CPU usage for the service exceeds 10%.
+| Алерт | Условие в текущей конфигурации | Назначение |
+|---|---|---|
+| `NodeMemoryAvailableLow` | `node_filesystem_avail_bytes{mountpoint='/'} < 104857600` в течение 2 минут | Контроль свободного места на корневой файловой системе |
+| `NodeMemoryUsageHigh` | Используемая RAM больше 1 GiB в течение 2 минут | Контроль потребления памяти узлом |
+| `ServiceCPUUsageHigh` | Суммарный CPU сервиса больше 10% одного ядра в течение 2 минут | Контроль CPU-потребления сервиса |
 
-3. Configure notifications via personal email and Telegram.
+Alertmanager группирует уведомления, задаёт интервалы повторной отправки и направляет сообщения в Telegram и email. Для токенов бота и SMTP-пароля в Swarm используются Docker secrets, подключаемые к контейнеру как файлы из `/run/secrets/`.
+
+> **Важное уточнение по алерту памяти:** фактическое выражение `NodeMemoryAvailableLow` использует `node_filesystem_avail_bytes`, то есть измеряет свободное место на файловой системе, а не доступную RAM. Название и текст уведомления в конфигурации не соответствуют метрике. Для контроля RAM следует использовать `node_memory_MemAvailable_bytes`. Также в комментарии второго правила указано 5 минут, но фактический параметр `for` равен 2 минутам. Эти расхождения нужно исправить перед использованием конфигурации в реальной эксплуатации.
+
+## Развёртывание лабораторного стенда
+
+Инфраструктура виртуальных машин описана в `src/Vagrantfile`:
+
+| VM | Роль | IP | Ресурсы |
+|---|---|---|---|
+| manager01 | Swarm manager | `192.168.56.10` | 4 CPU, 4096 MB RAM |
+| worker01 | Swarm worker | `192.168.56.11` | 2 CPU, 1024 MB RAM |
+| worker02 | Swarm worker | `192.168.56.12` | 2 CPU, 1024 MB RAM |
+
+Используется `bento/ubuntu-24.04`. Скрипты в `src/scripts/` устанавливают Docker Engine и инициализируют Swarm: manager сохраняет worker join token в общий каталог, worker-ноды используют его для присоединения к кластеру.
+
+### Подготовка
+
+Перейдите в каталог `src`:
+
+```bash
+cd src
+```
+
+Создайте локальный `.env` на основе шаблона и заполните параметры приложения:
+
+```bash
+cp .env.example .env
+```
+
+Поднимите виртуальные машины:
+
+```bash
+vagrant up
+```
+
+После инициализации Swarm подключитесь к manager:
+
+```bash
+vagrant ssh manager01
+```
+
+### Развёртывание приложения и мониторинга
+
+Команды ниже выполняются на manager-ноде из каталога `/home/vagrant/src`, куда Vagrant синхронизирует проект.
+
+Разверните приложение:
+
+```bash
+docker stack deploy -c docker-compose.yml app
+```
+
+Создайте Swarm secrets для Alertmanager (значения вводятся локально; не храните их в репозитории):
+
+```bash
+printf '%s' "$TELEGRAM_TOKEN" | docker secret create telegram_token -
+printf '%s' "$GMAIL_TOKEN" | docker secret create gmail_token -
+```
+
+Разверните monitoring stack:
+
+```bash
+docker stack deploy -c docker-compose-monitoring.yml monitoring
+```
+
+Проверьте состояние сервисов и задач:
+
+```bash
+docker stack services app
+docker stack services monitoring
+docker stack ps monitoring
+```
+
+В конфигурации Compose опубликованы веб-интерфейсы Prometheus и Grafana:
+
+- Prometheus: `http://<manager-ip>:9090`
+- Grafana: `http://<manager-ip>:3000`
+
+Остальные внутренние компоненты взаимодействуют по overlay-сети. Фактические адреса и доступность интерфейсов зависят от сетевой конфигурации хоста и виртуальной машины.
+
+## Структура проекта
+
+```text
+.
+├── README.md
+├── README_RUS.md
+└── src/
+    ├── REPORT.MD
+    ├── .env.example
+    ├── Vagrantfile
+    ├── docker-compose.yml
+    ├── docker-compose-monitoring.yml
+    ├── nginx.conf
+    ├── scripts/
+    │   ├── install_docker.sh
+    │   ├── manager.sh
+    │   └── worker.sh
+    ├── monitoring/
+    │   ├── prometheus.yml
+    │   ├── alert-rules.yml
+    │   ├── alertmanager.yml
+    │   ├── blackbox.yml
+    │   ├── loki_config.yml
+    │   ├── alloy_config.alloy
+    │   └── grafana/
+    │       ├── dashboards/
+    │       └── provisioning/
+    └── services/
+        ├── session-service/
+        ├── hotel-service/
+        ├── booking-service/
+        ├── payment-service/
+        ├── loyalty-service/
+        ├── report-service/
+        └── gateway-service/
+```
+
+## Что демонстрирует проект
+
+- Интеграцию Micrometer и Spring Boot Actuator с Prometheus.
+- Сбор инфраструктурных метрик Docker Swarm через exporters.
+- Service discovery для Swarm tasks.
+- Централизованный сбор контейнерных логов через Alloy и Loki.
+- Построение Grafana dashboard для инфраструктурных и бизнес-метрик.
+- Настройку Prometheus alerting rules и маршрутизацию уведомлений через Alertmanager.
+- Использование Docker secrets для передачи токенов в Swarm-сервисы.
+- Развёртывание многоузлового лабораторного кластера с помощью Vagrant.
+
+## Ограничения и направления улучшения
+
+Проект демонстрирует базовый end-to-end monitoring pipeline, но не является готовой production-платформой мониторинга. Перед эксплуатацией стоит:
+
+1. Исправить выражение алерта доступной RAM и согласовать длительность срабатывания с текстом уведомления.
+2. Не запускать Prometheus с root без необходимости. Доступ к Docker socket даже в режиме read-only требует отдельной оценки: такой socket предоставляет доступ к Docker API и не становится безопасным только из-за `:ro`.
+3. Ограничить привилегии cAdvisor и доступ к host namespaces/mounts настолько, насколько позволяет выбранный способ сбора метрик.
+4. Вынести пароль администратора Grafana и SMTP/Telegram-параметры в управляемые секреты. Не использовать демонстрационные пароли.
+5. Настроить TLS и аутентификацию для внешнего доступа к интерфейсам мониторинга.
+6. Настроить резервное копирование и retention для Prometheus, Loki и Grafana с учётом дисковых лимитов.
+7. Добавить provisioning самого dashboard из файла экспорта и проверить автоматическую загрузку при чистом развёртывании.
+8. Зафиксировать версии образов и регулярно обновлять их с проверкой совместимости и security advisories.
+9. Добавить resource requests/limits и стратегию обновления сервисов там, где это поддерживается Swarm.
+
+## Безопасность перед публикацией
+
+В исходном архиве обнаружены чувствительные данные и небезопасные настройки:
+
+- В `docker-compose-monitoring.yml` задан демонстрационный пароль Grafana. Его нельзя использовать в публичной или рабочей среде.
+- В `alertmanager.yml` присутствуют персональные параметры получателей уведомлений. Их следует вынести в конфигурацию/секреты и заменить перед публикацией.
